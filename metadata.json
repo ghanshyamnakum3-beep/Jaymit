@@ -1,0 +1,6 @@
+{
+  "name": "CrewCircle",
+  "description": "A private friends group hub for birthday wishes and reminders, shared photo and video memories, real-time multiplayer games, and live life status updates.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

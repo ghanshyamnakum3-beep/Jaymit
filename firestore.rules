@@ -1,0 +1,457 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Global Safety Net (Default Deny)
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // --- GLOBAL HELPERS ---
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function isValidMemberList(list) {
+      return list is list && list.size() >= 1 && list.size() <= 50 && list[0] is string;
+    }
+
+    function isValidOptionalUidList(list) {
+      return list is list && list.size() <= 50 && (list.size() == 0 || list[0] is string);
+    }
+
+    function isValidTimestamp(ts) {
+      return ts is timestamp && ts <= request.time;
+    }
+
+    // --- ENTITY VALIDATION HELPERS ---
+    function isValidUserProfile(data, userId) {
+      return data.keys().hasAll(['userId', 'displayName', 'avatarIndex', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['userId', 'displayName', 'email', 'birthdayMonth', 'birthdayDay', 'avatarIndex', 'activeGroupId', 'createdAt', 'updatedAt']) &&
+             data.userId is string && data.userId == userId &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 50 &&
+             data.avatarIndex is int && data.avatarIndex >= 0 && data.avatarIndex <= 7 &&
+             (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+             (!('birthdayMonth' in data) || (data.birthdayMonth is int && data.birthdayMonth >= 0 && data.birthdayMonth <= 12)) &&
+             (!('birthdayDay' in data) || (data.birthdayDay is int && data.birthdayDay >= 0 && data.birthdayDay <= 31)) &&
+             (!('activeGroupId' in data) || (data.activeGroupId is string && data.activeGroupId.size() <= 128)) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidGroup(data) {
+      return data.keys().hasAll(['name', 'inviteCode', 'creatorUid', 'memberUids', 'createdAt', 'updatedAt']) &&
+             data.keys().hasOnly(['name', 'inviteCode', 'creatorUid', 'memberUids', 'createdAt', 'updatedAt']) &&
+             data.name is string && data.name.size() >= 1 && data.name.size() <= 50 &&
+             data.inviteCode is string && data.inviteCode.size() >= 4 && data.inviteCode.size() <= 12 &&
+             data.inviteCode.matches('^[A-Z0-9]+$') &&
+             data.creatorUid is string && data.creatorUid.size() >= 1 && data.creatorUid.size() <= 128 &&
+             isValidMemberList(data.memberUids) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidInviteCode(data) {
+      return data.keys().hasAll(['groupId', 'groupName', 'creatorUid', 'createdAt']) &&
+             data.keys().hasOnly(['groupId', 'groupName', 'creatorUid', 'createdAt']) &&
+             isValidId(data.groupId) &&
+             data.groupName is string && data.groupName.size() >= 1 && data.groupName.size() <= 50 &&
+             data.creatorUid is string && data.creatorUid.size() >= 1 && data.creatorUid.size() <= 128 &&
+             isValidTimestamp(data.createdAt);
+    }
+
+    function isValidGroupMember(data, groupId, memberId) {
+      return data.keys().hasAll([
+               'userId', 'groupId', 'memberUids', 'displayName', 'avatarIndex',
+               'birthdayMonth', 'birthdayDay', 'statusCategory', 'statusText',
+               'statusPlace', 'availability', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'userId', 'groupId', 'memberUids', 'displayName', 'avatarIndex',
+               'birthdayMonth', 'birthdayDay', 'statusCategory', 'statusText',
+               'statusPlace', 'availability', 'createdAt', 'updatedAt'
+             ]) &&
+             data.userId is string && data.userId == memberId &&
+             data.groupId is string && data.groupId == groupId &&
+             isValidMemberList(data.memberUids) &&
+             data.displayName is string && data.displayName.size() >= 1 && data.displayName.size() <= 50 &&
+             data.avatarIndex is int && data.avatarIndex >= 0 && data.avatarIndex <= 7 &&
+             data.birthdayMonth is int && data.birthdayMonth >= 0 && data.birthdayMonth <= 12 &&
+             data.birthdayDay is int && data.birthdayDay >= 0 && data.birthdayDay <= 31 &&
+             data.statusCategory in ['GENERAL', 'HOSPITAL', 'WORK', 'STUDY', 'CHILL', 'TRAVEL'] &&
+             data.statusText is string && data.statusText.size() <= 180 &&
+             data.statusPlace is string && data.statusPlace.size() <= 80 &&
+             data.availability in ['AVAILABLE', 'BUSY', 'NEED_SUPPORT', 'OFFLINE'] &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidBirthdayWish(data, groupId) {
+      return data.keys().hasAll([
+               'groupId', 'targetUserId', 'targetName', 'senderUserId',
+               'senderName', 'message', 'giftEmoji', 'year', 'memberUids',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'groupId', 'targetUserId', 'targetName', 'senderUserId',
+               'senderName', 'message', 'giftEmoji', 'year', 'memberUids',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.groupId is string && data.groupId == groupId &&
+             data.targetUserId is string && data.targetUserId.size() >= 1 && data.targetUserId.size() <= 128 &&
+             data.targetName is string && data.targetName.size() >= 1 && data.targetName.size() <= 50 &&
+             data.senderUserId is string && data.senderUserId.size() >= 1 && data.senderUserId.size() <= 128 &&
+             data.senderName is string && data.senderName.size() >= 1 && data.senderName.size() <= 50 &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 300 &&
+             data.giftEmoji is string && data.giftEmoji.size() >= 1 && data.giftEmoji.size() <= 16 &&
+             data.year is int && data.year >= 2020 && data.year <= 2100 &&
+             isValidMemberList(data.memberUids) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidStatusPost(data, groupId) {
+      return data.keys().hasAll([
+               'groupId', 'userId', 'authorName', 'avatarIndex', 'category',
+               'message', 'placeName', 'availability', 'supportUids', 'memberUids',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'groupId', 'userId', 'authorName', 'avatarIndex', 'category',
+               'message', 'placeName', 'availability', 'supportUids', 'memberUids',
+               'createdAt', 'updatedAt'
+             ]) &&
+             data.groupId is string && data.groupId == groupId &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 50 &&
+             data.avatarIndex is int && data.avatarIndex >= 0 && data.avatarIndex <= 7 &&
+             data.category in ['GENERAL', 'HOSPITAL', 'WORK', 'STUDY', 'CHILL', 'TRAVEL'] &&
+             data.message is string && data.message.size() >= 1 && data.message.size() <= 240 &&
+             data.placeName is string && data.placeName.size() <= 80 &&
+             data.availability in ['AVAILABLE', 'BUSY', 'NEED_SUPPORT', 'OFFLINE'] &&
+             isValidOptionalUidList(data.supportUids) &&
+             isValidMemberList(data.memberUids) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidMemory(data, groupId) {
+      return data.keys().hasAll([
+               'groupId', 'userId', 'authorName', 'mediaType', 'caption', 'tag',
+               'mediaBase64', 'thumbnailBase64', 'externalUrl', 'likedByUids',
+               'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'groupId', 'userId', 'authorName', 'mediaType', 'caption', 'tag',
+               'mediaBase64', 'thumbnailBase64', 'externalUrl', 'likedByUids',
+               'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.groupId is string && data.groupId == groupId &&
+             data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+             data.authorName is string && data.authorName.size() >= 1 && data.authorName.size() <= 50 &&
+             data.mediaType in ['PHOTO', 'VIDEO'] &&
+             data.caption is string && data.caption.size() >= 1 && data.caption.size() <= 240 &&
+             data.tag is string && data.tag.size() <= 40 &&
+             data.mediaBase64 is string && data.mediaBase64.size() <= 650000 &&
+             data.thumbnailBase64 is string && data.thumbnailBase64.size() <= 200000 &&
+             data.externalUrl is string && data.externalUrl.size() <= 500 &&
+             (data.mediaBase64.size() > 0 || data.thumbnailBase64.size() > 0 || data.externalUrl.size() > 0) &&
+             isValidOptionalUidList(data.likedByUids) &&
+             isValidMemberList(data.memberUids) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    function isValidGameRoom(data, groupId) {
+      return data.keys().hasAll([
+               'groupId', 'gameType', 'status', 'hostUid', 'hostName',
+               'guestUid', 'guestName', 'currentTurnUid', 'winnerUid', 'board',
+               'rpsRound', 'rpsHostMove', 'rpsGuestMove', 'rpsHostScore',
+               'rpsGuestScore', 'rpsSummary', 'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.keys().hasOnly([
+               'groupId', 'gameType', 'status', 'hostUid', 'hostName',
+               'guestUid', 'guestName', 'currentTurnUid', 'winnerUid', 'board',
+               'rpsRound', 'rpsHostMove', 'rpsGuestMove', 'rpsHostScore',
+               'rpsGuestScore', 'rpsSummary', 'memberUids', 'createdAt', 'updatedAt'
+             ]) &&
+             data.groupId is string && data.groupId == groupId &&
+             data.gameType in ['TIC_TAC_TOE', 'CONNECT_FOUR', 'RPS_DUEL'] &&
+             data.status in ['WAITING', 'PLAYING', 'FINISHED'] &&
+             data.hostUid is string && data.hostUid.size() >= 1 && data.hostUid.size() <= 128 &&
+             data.hostName is string && data.hostName.size() >= 1 && data.hostName.size() <= 50 &&
+             data.guestUid is string && data.guestUid.size() <= 128 &&
+             data.guestName is string && data.guestName.size() <= 50 &&
+             data.currentTurnUid is string && data.currentTurnUid.size() <= 128 &&
+             data.winnerUid is string && data.winnerUid.size() <= 128 &&
+             data.board is list && data.board.size() <= 42 && (data.board.size() == 0 || data.board[0] is string) &&
+             data.rpsRound is int && data.rpsRound >= 1 && data.rpsRound <= 10 &&
+             data.rpsHostMove in ['', 'ROCK', 'PAPER', 'SCISSORS'] &&
+             data.rpsGuestMove in ['', 'ROCK', 'PAPER', 'SCISSORS'] &&
+             data.rpsHostScore is int && data.rpsHostScore >= 0 && data.rpsHostScore <= 10 &&
+             data.rpsGuestScore is int && data.rpsGuestScore >= 0 && data.rpsGuestScore <= 10 &&
+             data.rpsSummary is string && data.rpsSummary.size() <= 120 &&
+             isValidMemberList(data.memberUids) &&
+             isValidTimestamp(data.createdAt) &&
+             isValidTimestamp(data.updatedAt);
+    }
+
+    // --- COLLECTIONS ---
+
+    match /users/{userId} {
+      allow get, list: if isSignedIn() && request.auth.uid == userId;
+      allow create: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming(), userId);
+      allow update: if isSignedIn() &&
+                       isValidId(userId) &&
+                       request.auth.uid == userId &&
+                       isValidUserProfile(incoming(), userId) &&
+                       incoming().userId == existing().userId &&
+                       incoming().createdAt == existing().createdAt &&
+                       incoming().diff(existing()).affectedKeys().hasOnly([
+                         'displayName', 'email', 'birthdayMonth', 'birthdayDay',
+                         'avatarIndex', 'activeGroupId', 'updatedAt'
+                       ]);
+      allow delete: if isSignedIn() && isValidId(userId) && request.auth.uid == userId;
+    }
+
+    match /inviteCodes/{code} {
+      allow get: if isSignedIn() && isValidId(code);
+      allow list: if false;
+      allow create: if isSignedIn() &&
+                       isValidId(code) &&
+                       code.size() >= 4 && code.size() <= 12 &&
+                       code.matches('^[A-Z0-9]+$') &&
+                       incoming().creatorUid == request.auth.uid &&
+                       isValidInviteCode(incoming()) &&
+                       existsAfter(/databases/$(database)/documents/groups/$(incoming().groupId));
+      allow update: if false;
+      allow delete: if isSignedIn() && isValidId(code) && existing().creatorUid == request.auth.uid;
+    }
+
+    match /groups/{groupId} {
+      allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+      allow get: if isSignedIn() && isValidId(groupId) && request.auth.uid in existing().memberUids;
+
+      allow create: if isSignedIn() &&
+                       isValidId(groupId) &&
+                       incoming().creatorUid == request.auth.uid &&
+                       request.auth.uid in incoming().memberUids &&
+                       incoming().memberUids.size() == 1 &&
+                       isValidGroup(incoming());
+
+      allow update: if isSignedIn() &&
+                       isValidId(groupId) &&
+                       isValidGroup(incoming()) &&
+                       incoming().creatorUid == existing().creatorUid &&
+                       incoming().inviteCode == existing().inviteCode &&
+                       incoming().createdAt == existing().createdAt && (
+                         // Action 1: Creator updates group name
+                         (request.auth.uid == existing().creatorUid &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['name', 'updatedAt'])) ||
+                         // Action 2: Authenticated user joins group by adding ONLY themselves
+                         (!(request.auth.uid in existing().memberUids) &&
+                          request.auth.uid in incoming().memberUids &&
+                          incoming().memberUids.hasAll(existing().memberUids) &&
+                          incoming().memberUids.size() == existing().memberUids.size() + 1 &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt'])) ||
+                         // Action 3: Non-creator member leaves group by removing ONLY themselves
+                         (request.auth.uid in existing().memberUids &&
+                          request.auth.uid != existing().creatorUid &&
+                          !(request.auth.uid in incoming().memberUids) &&
+                          existing().memberUids.hasAll(incoming().memberUids) &&
+                          incoming().memberUids.size() == existing().memberUids.size() - 1 &&
+                          incoming().diff(existing()).affectedKeys().hasOnly(['memberUids', 'updatedAt']))
+                       );
+
+      allow delete: if isSignedIn() && isValidId(groupId) && existing().creatorUid == request.auth.uid;
+
+      // --- GROUP SUBCOLLECTIONS ---
+
+      match /members/{memberId} {
+        allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+        allow get: if isSignedIn() && isValidId(groupId) && isValidId(memberId) && request.auth.uid in existing().memberUids;
+
+        allow create: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(memberId) &&
+                         request.auth.uid == memberId &&
+                         isValidGroupMember(incoming(), groupId, memberId) &&
+                         request.auth.uid in incoming().memberUids &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+
+        allow update: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(memberId) &&
+                         isValidGroupMember(incoming(), groupId, memberId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().groupId == existing().groupId &&
+                         incoming().createdAt == existing().createdAt && (
+                           // Action 1: Member updates their own profile, birthday, or live status
+                           (request.auth.uid == existing().userId &&
+                            request.auth.uid in existing().memberUids &&
+                            incoming().diff(existing()).affectedKeys().hasOnly([
+                              'displayName', 'avatarIndex', 'birthdayMonth', 'birthdayDay',
+                              'statusCategory', 'statusText', 'statusPlace', 'availability',
+                              'memberUids', 'updatedAt'
+                            ])) ||
+                           // Action 2: Any existing group member propagates newly joined memberUids
+                           (request.auth.uid in existing().memberUids &&
+                            incoming().diff(existing()).affectedKeys().hasOnly(['memberUids']) &&
+                            incoming().memberUids.hasAll(existing().memberUids))
+                         );
+
+        allow delete: if isSignedIn() && isValidId(groupId) && isValidId(memberId) && request.auth.uid == existing().userId;
+      }
+
+      match /wishes/{wishId} {
+        allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+        allow get: if isSignedIn() && isValidId(groupId) && isValidId(wishId) && request.auth.uid in existing().memberUids;
+
+        allow create: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(wishId) &&
+                         incoming().senderUserId == request.auth.uid &&
+                         isValidBirthdayWish(incoming(), groupId) &&
+                         request.auth.uid in incoming().memberUids &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+
+        allow update: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(wishId) &&
+                         isValidBirthdayWish(incoming(), groupId) &&
+                         incoming().senderUserId == existing().senderUserId &&
+                         incoming().groupId == existing().groupId &&
+                         incoming().targetUserId == existing().targetUserId &&
+                         incoming().createdAt == existing().createdAt &&
+                         request.auth.uid in existing().memberUids &&
+                         incoming().diff(existing()).affectedKeys().hasOnly(['memberUids']) &&
+                         incoming().memberUids.hasAll(existing().memberUids);
+
+        allow delete: if isSignedIn() && isValidId(groupId) && isValidId(wishId) && existing().senderUserId == request.auth.uid;
+      }
+
+      match /statuses/{statusId} {
+        allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+        allow get: if isSignedIn() && isValidId(groupId) && isValidId(statusId) && request.auth.uid in existing().memberUids;
+
+        allow create: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(statusId) &&
+                         incoming().userId == request.auth.uid &&
+                         isValidStatusPost(incoming(), groupId) &&
+                         request.auth.uid in incoming().memberUids &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+
+        allow update: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(statusId) &&
+                         isValidStatusPost(incoming(), groupId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().groupId == existing().groupId &&
+                         incoming().createdAt == existing().createdAt &&
+                         request.auth.uid in existing().memberUids && (
+                           // Action 1: Support reaction toggle
+                           incoming().diff(existing()).affectedKeys().hasOnly(['supportUids', 'updatedAt']) ||
+                           // Action 2: Member sync
+                           (incoming().diff(existing()).affectedKeys().hasOnly(['memberUids']) &&
+                            incoming().memberUids.hasAll(existing().memberUids))
+                         );
+
+        allow delete: if isSignedIn() && isValidId(groupId) && isValidId(statusId) && existing().userId == request.auth.uid;
+      }
+
+      match /memories/{memoryId} {
+        allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+        allow get: if isSignedIn() && isValidId(groupId) && isValidId(memoryId) && request.auth.uid in existing().memberUids;
+
+        allow create: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(memoryId) &&
+                         incoming().userId == request.auth.uid &&
+                         isValidMemory(incoming(), groupId) &&
+                         request.auth.uid in incoming().memberUids &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+
+        allow update: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(memoryId) &&
+                         isValidMemory(incoming(), groupId) &&
+                         incoming().userId == existing().userId &&
+                         incoming().groupId == existing().groupId &&
+                         incoming().createdAt == existing().createdAt &&
+                         request.auth.uid in existing().memberUids && (
+                           // Action 1: Like toggle
+                           incoming().diff(existing()).affectedKeys().hasOnly(['likedByUids', 'updatedAt']) ||
+                           // Action 2: Member sync
+                           (incoming().diff(existing()).affectedKeys().hasOnly(['memberUids']) &&
+                            incoming().memberUids.hasAll(existing().memberUids))
+                         );
+
+        allow delete: if isSignedIn() && isValidId(groupId) && isValidId(memoryId) && existing().userId == request.auth.uid;
+      }
+
+      match /games/{gameId} {
+        allow list: if isSignedIn() && request.auth.uid in existing().memberUids;
+        allow get: if isSignedIn() && isValidId(groupId) && isValidId(gameId) && request.auth.uid in existing().memberUids;
+
+        allow create: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(gameId) &&
+                         incoming().hostUid == request.auth.uid &&
+                         incoming().status == 'WAITING' &&
+                         incoming().winnerUid == '' &&
+                         isValidGameRoom(incoming(), groupId) &&
+                         request.auth.uid in incoming().memberUids &&
+                         request.auth.uid in get(/databases/$(database)/documents/groups/$(groupId)).data.memberUids;
+
+        allow update: if isSignedIn() &&
+                         isValidId(groupId) &&
+                         isValidId(gameId) &&
+                         isValidGameRoom(incoming(), groupId) &&
+                         incoming().hostUid == existing().hostUid &&
+                         incoming().groupId == existing().groupId &&
+                         incoming().gameType == existing().gameType &&
+                         incoming().createdAt == existing().createdAt &&
+                         request.auth.uid in existing().memberUids && (
+                           // Action 1: Join waiting game room
+                           (existing().status == 'WAITING' &&
+                            existing().guestUid == '' &&
+                            request.auth.uid != existing().hostUid &&
+                            incoming().guestUid == request.auth.uid &&
+                            incoming().status == 'PLAYING' &&
+                            incoming().diff(existing()).affectedKeys().hasOnly([
+                              'guestUid', 'guestName', 'status', 'currentTurnUid', 'updatedAt'
+                            ])) ||
+                           // Action 2: Active player makes a move (blocked if FINISHED)
+                           (existing().status == 'PLAYING' &&
+                            (request.auth.uid == existing().hostUid || request.auth.uid == existing().guestUid) &&
+                            incoming().diff(existing()).affectedKeys().hasOnly([
+                              'board', 'currentTurnUid', 'status', 'winnerUid',
+                              'rpsRound', 'rpsHostMove', 'rpsGuestMove',
+                              'rpsHostScore', 'rpsGuestScore', 'rpsSummary', 'updatedAt'
+                            ])) ||
+                           // Action 3: Member sync
+                           (incoming().diff(existing()).affectedKeys().hasOnly(['memberUids']) &&
+                            incoming().memberUids.hasAll(existing().memberUids))
+                         );
+
+        allow delete: if isSignedIn() && isValidId(groupId) && isValidId(gameId) && existing().hostUid == request.auth.uid;
+      }
+    }
+  }
+}

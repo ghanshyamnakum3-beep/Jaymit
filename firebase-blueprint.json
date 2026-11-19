@@ -1,0 +1,222 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user profile and preferences isolated to the signed-in owner.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID of the owner." },
+        "displayName": { "type": "string", "description": "User display name." },
+        "email": { "type": "string", "description": "Private user email address." },
+        "birthdayMonth": { "type": "integer", "description": "Birth month 1-12, or 0 if unset." },
+        "birthdayDay": { "type": "integer", "description": "Birth day 1-31, or 0 if unset." },
+        "avatarIndex": { "type": "integer", "description": "Avatar color preset index 0-7." },
+        "activeGroupId": { "type": "string", "description": "Last active friends group ID." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp of creation." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp of last update." }
+      },
+      "required": ["userId", "displayName", "avatarIndex", "createdAt", "updatedAt"]
+    },
+    "FriendGroup": {
+      "title": "FriendGroup",
+      "description": "A private friends group sharing birthdays, memories, games, and live statuses.",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string", "description": "Name of the friends group." },
+        "inviteCode": { "type": "string", "description": "Uppercase 6-character invite code." },
+        "creatorUid": { "type": "string", "description": "UID of the group creator." },
+        "memberUids": { "type": "array", "description": "List of member UIDs (max 50)." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp." }
+      },
+      "required": ["name", "inviteCode", "creatorUid", "memberUids", "createdAt", "updatedAt"]
+    },
+    "InviteCode": {
+      "title": "InviteCode",
+      "description": "Direct invite code lookup document mapping an invite code to a groupId.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string", "description": "Target group ID." },
+        "groupName": { "type": "string", "description": "Target group display name." },
+        "creatorUid": { "type": "string", "description": "UID of the creator." },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp." }
+      },
+      "required": ["groupId", "groupName", "creatorUid", "createdAt"]
+    },
+    "GroupMember": {
+      "title": "GroupMember",
+      "description": "Group-scoped friend profile with birthday and current live status.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Member Firebase Auth UID." },
+        "groupId": { "type": "string", "description": "Parent group ID." },
+        "memberUids": { "type": "array", "description": "Denormalized group member UIDs." },
+        "displayName": { "type": "string", "description": "Friend display name." },
+        "avatarIndex": { "type": "integer", "description": "Avatar theme index 0-7." },
+        "birthdayMonth": { "type": "integer", "description": "Birth month 1-12 or 0 if unset." },
+        "birthdayDay": { "type": "integer", "description": "Birth day 1-31 or 0 if unset." },
+        "statusCategory": {
+          "type": "string",
+          "enum": ["GENERAL", "HOSPITAL", "WORK", "STUDY", "CHILL", "TRAVEL"]
+        },
+        "statusText": { "type": "string", "description": "Current live status note." },
+        "statusPlace": { "type": "string", "description": "Optional place like City Hospital or Office." },
+        "availability": {
+          "type": "string",
+          "enum": ["AVAILABLE", "BUSY", "NEED_SUPPORT", "OFFLINE"]
+        },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp." },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp." }
+      },
+      "required": [
+        "userId", "groupId", "memberUids", "displayName", "avatarIndex",
+        "birthdayMonth", "birthdayDay", "statusCategory", "statusText",
+        "statusPlace", "availability", "createdAt", "updatedAt"
+      ]
+    },
+    "BirthdayWish": {
+      "title": "BirthdayWish",
+      "description": "Celebratory birthday wish sent to a group member.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string" },
+        "targetUserId": { "type": "string" },
+        "targetName": { "type": "string" },
+        "senderUserId": { "type": "string" },
+        "senderName": { "type": "string" },
+        "message": { "type": "string" },
+        "giftEmoji": { "type": "string" },
+        "year": { "type": "integer" },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "groupId", "targetUserId", "targetName", "senderUserId",
+        "senderName", "message", "giftEmoji", "year", "memberUids",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "StatusPost": {
+      "title": "StatusPost",
+      "description": "Live status feed post from a friend (e.g. hospital, job, hangout).",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string" },
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "avatarIndex": { "type": "integer" },
+        "category": {
+          "type": "string",
+          "enum": ["GENERAL", "HOSPITAL", "WORK", "STUDY", "CHILL", "TRAVEL"]
+        },
+        "message": { "type": "string" },
+        "placeName": { "type": "string" },
+        "availability": {
+          "type": "string",
+          "enum": ["AVAILABLE", "BUSY", "NEED_SUPPORT", "OFFLINE"]
+        },
+        "supportUids": { "type": "array" },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "groupId", "userId", "authorName", "avatarIndex", "category",
+        "message", "placeName", "availability", "supportUids", "memberUids",
+        "createdAt", "updatedAt"
+      ]
+    },
+    "GroupMemory": {
+      "title": "GroupMemory",
+      "description": "Shared photo or video memory posted to the friends group.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string" },
+        "userId": { "type": "string" },
+        "authorName": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["PHOTO", "VIDEO"] },
+        "caption": { "type": "string" },
+        "tag": { "type": "string" },
+        "mediaBase64": { "type": "string" },
+        "thumbnailBase64": { "type": "string" },
+        "externalUrl": { "type": "string" },
+        "likedByUids": { "type": "array" },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "groupId", "userId", "authorName", "mediaType", "caption", "tag",
+        "mediaBase64", "thumbnailBase64", "externalUrl", "likedByUids",
+        "memberUids", "createdAt", "updatedAt"
+      ]
+    },
+    "GameRoom": {
+      "title": "GameRoom",
+      "description": "Real-time multiplayer game room for group members.",
+      "type": "object",
+      "properties": {
+        "groupId": { "type": "string" },
+        "gameType": { "type": "string", "enum": ["TIC_TAC_TOE", "CONNECT_FOUR", "RPS_DUEL"] },
+        "status": { "type": "string", "enum": ["WAITING", "PLAYING", "FINISHED"] },
+        "hostUid": { "type": "string" },
+        "hostName": { "type": "string" },
+        "guestUid": { "type": "string" },
+        "guestName": { "type": "string" },
+        "currentTurnUid": { "type": "string" },
+        "winnerUid": { "type": "string" },
+        "board": { "type": "array" },
+        "rpsRound": { "type": "integer" },
+        "rpsHostMove": { "type": "string" },
+        "rpsGuestMove": { "type": "string" },
+        "rpsHostScore": { "type": "integer" },
+        "rpsGuestScore": { "type": "integer" },
+        "rpsSummary": { "type": "string" },
+        "memberUids": { "type": "array" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": [
+        "groupId", "gameType", "status", "hostUid", "hostName",
+        "guestUid", "guestName", "currentTurnUid", "winnerUid", "board",
+        "rpsRound", "rpsHostMove", "rpsGuestMove", "rpsHostScore",
+        "rpsGuestScore", "rpsSummary", "memberUids", "createdAt", "updatedAt"
+      ]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "Owner-isolated private user profile."
+    },
+    "/groups/{groupId}": {
+      "schema": { "$ref": "#/entities/FriendGroup" },
+      "description": "Friends group metadata and membership list."
+    },
+    "/inviteCodes/{code}": {
+      "schema": { "$ref": "#/entities/InviteCode" },
+      "description": "Direct lookup mapping 6-char invite code to groupId."
+    },
+    "/groups/{groupId}/members/{memberId}": {
+      "schema": { "$ref": "#/entities/GroupMember" },
+      "description": "Group member directory, birthdays, and current live status."
+    },
+    "/groups/{groupId}/wishes/{wishId}": {
+      "schema": { "$ref": "#/entities/BirthdayWish" },
+      "description": "Birthday wishes and gifts sent between group members."
+    },
+    "/groups/{groupId}/statuses/{statusId}": {
+      "schema": { "$ref": "#/entities/StatusPost" },
+      "description": "Real-time status updates timeline for the friends group."
+    },
+    "/groups/{groupId}/memories/{memoryId}": {
+      "schema": { "$ref": "#/entities/GroupMemory" },
+      "description": "Shared photo and video memories for the friends group."
+    },
+    "/groups/{groupId}/games/{gameId}": {
+      "schema": { "$ref": "#/entities/GameRoom" },
+      "description": "Real-time multiplayer game rooms within the friends group."
+    }
+  }
+}

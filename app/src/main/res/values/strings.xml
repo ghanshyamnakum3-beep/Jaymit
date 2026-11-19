@@ -1,0 +1,25 @@
+<resources>
+    <string name="app_name">CrewCircle</string>
+    <string name="tagline">Your private friends hub for birthdays, memories, games &amp; life updates</string>
+    <string name="login_title">Welcome Back</string>
+    <string name="login_subtitle">Sign in with your Google account to enter your friends circle.</string>
+    <string name="login_footer">Secured with Firebase Authentication &amp; Google Sign-In</string>
+    <string name="sign_in_with_google">Sign in with Google</string>
+    <string name="signing_in">Signing in…</string>
+    <string name="nav_birthdays">Birthdays</string>
+    <string name="nav_memories">Memories</string>
+    <string name="nav_games">Games</string>
+    <string name="nav_status">Status</string>
+    <string name="nav_profile">Profile</string>
+    <string name="account_details_title">Account &amp; Crew Details</string>
+    <string name="logout_label">Logout</string>
+    <string name="create_group">Create a Friends Group</string>
+    <string name="join_group">Join with Invite Code</string>
+    <string name="invite_code_label">Invite Code</string>
+    <string name="birthday_reminders_title">Birthday Radar</string>
+    <string name="send_wish">Send Wish</string>
+    <string name="add_memory">Add Memory</string>
+    <string name="update_status">Update My Status</string>
+    <string name="play_together">Live Arcade</string>
+    <string name="sign_out">Sign out</string>
+</resources>
